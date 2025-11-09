@@ -2,6 +2,13 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { validateUser, validateUserUpdate } = require('../middleware/validation');
 
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
+
+// Load Private Key untuk tanda tangan token UTS
+const privateKey = fs.readFileSync(path.join(__dirname, '../private.key'), 'utf8');
+
 const router = express.Router();
 
 // In-memory database (replace with real database in production)
@@ -12,6 +19,9 @@ let users = [
     email: 'john@example.com',
     age: 30,
     role: 'admin',
+    // UTS
+    password: 'adminpassword', 
+    teamId: 'team-A',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -21,6 +31,9 @@ let users = [
     email: 'jane@example.com',
     age: 25,
     role: 'user',
+    // uts
+    password: 'adminpassword', 
+    teamId: 'team-A',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
@@ -169,6 +182,51 @@ router.delete('/:id', (req, res) => {
   res.json({
     message: 'User deleted successfully',
     user: deletedUser
+  });
+});
+
+// POST /api/users/login - Login user dan generate JWT UTS
+router.post('/login', (req, res) => {
+  const { email, password } = req.body;
+
+  // 1. Cari user berdasarkan email
+  const user = users.find(u => u.email === email);
+
+  // 2. Cek apakah user ada DAN password cocok
+  // (Note: di production harusnya pakai hashing, ini plain text untuk demo UTS)
+  if (!user || user.password !== password) {
+    return res.status(401).json({
+      error: 'Authentication failed',
+      message: 'Invalid email or password'
+    });
+  }
+
+  // 3. Buat payload untuk token (data yang disimpan dalam token)
+  const tokenPayload = {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    teamId: user.teamId
+  };
+
+  // 4. Generate JWT Token dengan Private Key
+  // Algoritma RS256 artinya menggunakan RSA Key Pair
+  const token = jwt.sign(tokenPayload, privateKey, {
+    algorithm: 'RS256',
+    expiresIn: '1h' // Token kadaluwarsa dalam 1 jam
+  });
+
+  // 5. Kirim response sukses dengan token
+  res.json({
+    message: 'Login successful',
+    token: token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      teamId: user.teamId
+    }
   });
 });
 
