@@ -35,7 +35,19 @@ let users = [
     password: 'adminpassword', 
     teamId: 'team-b',
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString() 
+  },
+  {
+    id: '3',
+    name: 'Jane Smith',
+    email: 'elang@example.com',
+    age: 25,
+    role: 'admin',
+    // uts
+    password: 'adminpassword', 
+    teamId: 'team-b',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString() 
   }
 ];
 
