@@ -29,8 +29,7 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
-// dmatiin dlu utk ngeceknya uts
+// Rate limiting (dimatikan sementara)
 // const limiter = rateLimit({
 //   windowMs: 15 * 60 * 1000, // 15 minutes
 //   max: 100, // limit each IP to 100 requests per windowMs
@@ -40,8 +39,8 @@ app.use(cors({
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     services: {
       'rest-api': process.env.REST_API_URL || 'http://localhost:3001',
@@ -61,9 +60,9 @@ const restApiProxy = createProxyMiddleware({
   },
   onError: (err, req, res) => {
     console.error('REST API Proxy Error:', err.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'REST API service unavailable',
-      message: err.message 
+      message: err.message
     });
   },
   onProxyReq: (proxyReq, req, res) => {
@@ -78,12 +77,17 @@ const graphqlApiProxy = createProxyMiddleware({
   ws: true, // Enable WebSocket proxying for subscriptions
   onError: (err, req, res) => {
     console.error('GraphQL API Proxy Error:', err.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'GraphQL API service unavailable',
-      message: err.message 
+      message: err.message
     });
   },
+  // INI ADALAH PERBAIKANNYA:
   onProxyReq: (proxyReq, req, res) => {
+    // Teruskan data user yang sudah diautentikasi ke service GraphQL
+    if (req.user) {
+      proxyReq.setHeader('x-user-data', JSON.stringify(req.user));
+    }
     console.log(`[GraphQL API] ${req.method} ${req.url} -> ${proxyReq.path}`);
   }
 });
@@ -91,31 +95,23 @@ const graphqlApiProxy = createProxyMiddleware({
 
 // Middleware Satpam (Otentikasi JWT)
 const authMiddleware = (req, res, next) => {
-  // 1. Cek apakah request membawa token di header Authorization
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // Kalau tidak ada token, tolak!
     return res.status(401).json({
       error: 'Unauthorized',
       message: 'Access denied. No valid token provided.'
     });
   }
 
-  // 2. Ambil tokennya saja (buang kata 'Bearer ')
   const token = authHeader.split(' ')[1];
 
   try {
-    // 3. Verifikasi token menggunakan Public Key
     const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
-    
-    // 4. Kalau berhasil, simpan data user di request supaya bisa dipakai service lain
+    // Simpan data user di request AGAR BISA DITERUSKAN oleh onProxyReq
     req.user = decoded;
-    
-    // 5. Lanjut ke service berikutnya (misal: GraphQL)
     next();
   } catch (error) {
-    // Kalau verifikasi gagal (token palsu/kadaluwarsa), tolak!
     return res.status(403).json({
       error: 'Forbidden',
       message: 'Invalid or expired token.'
@@ -125,12 +121,11 @@ const authMiddleware = (req, res, next) => {
 
 // Apply proxies
 app.use('/api', restApiProxy);
-// ngejaga yg kita buat 
 app.use('/graphql', authMiddleware, graphqlApiProxy);
 
 // Catch-all route
 app.get('*', (req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Route not found',
     availableRoutes: [
       '/health',
@@ -143,7 +138,7 @@ app.get('*', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Gateway Error:', err);
-  res.status(500).json({ 
+  res.status(500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });
