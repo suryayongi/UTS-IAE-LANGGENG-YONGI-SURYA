@@ -23,7 +23,7 @@ app.use(cors({
   credentials: true
 }));
 
-// In-memory data store (replace with real database in production)
+// In-memory data store
 let tasks = [
   {
     id: '1',
@@ -44,8 +44,6 @@ let tasks = [
     createdAt: new Date().toISOString(),
   }
 ];
-
-
 
 const typeDefs = gql`
   type Task {
